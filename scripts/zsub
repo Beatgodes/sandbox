@@ -1,0 +1,81 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long qw(:config no_auto_abbrev);
+use Pod::Usage;
+
+my %S=(n=>1);
+
+GetOptions( \%S,
+	qw{ help|h|?  man
+		I prop=s n=i
+	}
+	) or die "Specify the -man option for usage information.\n";
+
+pod2usage(2)                               if $S{help};
+pod2usage(-exitstatus => 0, -verbose => 2) if $S{man};
+
+my $n = $S{n} || 1;
+
+my $nodes = undef;
+
+
+if($S{I}){
+	my $x = "qnodes | grep -B 1 -A 2 'state = free'";
+	
+	if($S{prop}){
+		$x = "$x | grep -B 3 '$S{prop}'";
+	}
+	printf "$x\n";
+	$x = `$x`;
+	while($n > 0){
+		if($x =~ s/\s*(compute-\d+-\d+)\n\s*state = free\n\s*np = (\d+).*//){
+			$nodes .= "$1:ppn=$2";
+			print "$nodes\n";
+			$n--;
+			$nodes .= "+" if $n > 0; 
+		}
+		else{die "Não encontrei máqna\n";}
+	}
+}
+
+if(!$nodes){
+	$nodes = shift or die("usage: $0 [options] [machine name]\n");
+
+	my $y = `qnodes $nodes | grep np`;
+	$nodes .= ":ppn=$1" if $y =~ m/\s*np = (\d+)/;
+
+}
+
+print "Reserving machines $nodes\n";
+
+my $cmd = "qsub -l walltime=03:00:00 -l nodes=$nodes -I";
+
+print $cmd;
+system($cmd);
+
+__END__
+
+=head1 NAME
+
+zsub - Seamless way to use qsub, qstat and qnodes.
+
+=head1 SYNOPSIS
+
+All of these commands attempt to alocate max cpus for a machine and open an interactive terminal
+
+  zsub -I		-- alocates first machine found
+  zsub -I -prop=hex     -- alocates first machine found with specified proprieties
+  zsub node_name        -- alocates specified node
+  zsub -I -n <number>   -- alocates <number> nodes
+
+
+=head1 AUTHOR
+
+Cristiano Sousa, pg22840@alunos.uminho.pt
+
+=head1 SEE ALSO
+
+perl(1), qsub(1), qstat(1), pbsnodes(1).
+
+=cut 
